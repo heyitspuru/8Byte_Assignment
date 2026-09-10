@@ -21,6 +21,34 @@ Alpha Vantage TIME_SERIES_DAILY (compact, JSON)
         ▼
 stock_prices (symbol, trade_date) PK — UPSERT on conflict
 ```
+## Project Structure
+
+```
+├── docker-compose.yml          # Full stack definition
+├── Dockerfile                  # Airflow 3.3.1 + Python 3.12
+├── requirements.txt            # Pinned Python deps
+├── .env.example                # Template for environment config
+├── pyproject.toml              # Ruff + pytest config
+├── dags/
+│   └── stock_market_pipeline.py  # Airflow DAG (orchestration only)
+├── src/
+│   ├── config.py               # Env var loading + validation
+│   ├── exceptions.py           # Exception hierarchy
+│   ├── fetch_stock_data.py     # Alpha Vantage API client
+│   ├── transform.py            # JSON → typed record transform
+│   └── database.py             # PostgreSQL UPSERT
+├── sql/
+│   └── init.sql                # CREATE TABLE DDL
+├── tests/
+│   ├── test_config.py          # Config validation tests
+│   ├── test_fetcher.py         # API client tests (mocked)
+│   ├── test_transform.py       # Transform tests
+│   ├── test_database.py        # DB layer tests (mocked)
+│   └── test_dag_parses.py      # DAG import/parse test
+└── .github/
+    └── workflows/
+        └── ci.yml              # Lint + test on push
+```
 
 ### Module Boundaries
 
@@ -144,35 +172,6 @@ pytest -q -m "not integration"
 ```bash
 # The DAG parse test and integration tests run inside the Airflow containers
 docker compose exec airflow-api-server pytest /opt/airflow/tests/ -q
-```
-
-## Project Structure
-
-```
-├── docker-compose.yml          # Full stack definition
-├── Dockerfile                  # Airflow 3.3.1 + Python 3.12
-├── requirements.txt            # Pinned Python deps
-├── .env.example                # Template for environment config
-├── pyproject.toml              # Ruff + pytest config
-├── dags/
-│   └── stock_market_pipeline.py  # Airflow DAG (orchestration only)
-├── src/
-│   ├── config.py               # Env var loading + validation
-│   ├── exceptions.py           # Exception hierarchy
-│   ├── fetch_stock_data.py     # Alpha Vantage API client
-│   ├── transform.py            # JSON → typed record transform
-│   └── database.py             # PostgreSQL UPSERT
-├── sql/
-│   └── init.sql                # CREATE TABLE DDL
-├── tests/
-│   ├── test_config.py          # Config validation tests
-│   ├── test_fetcher.py         # API client tests (mocked)
-│   ├── test_transform.py       # Transform tests
-│   ├── test_database.py        # DB layer tests (mocked)
-│   └── test_dag_parses.py      # DAG import/parse test
-└── .github/
-    └── workflows/
-        └── ci.yml              # Lint + test on push
 ```
 
 ## Troubleshooting
