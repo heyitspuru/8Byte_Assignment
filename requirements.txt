@@ -1,0 +1,9 @@
+# Pinned dependencies for the stock market data pipeline.
+# Airflow is provided by the base Docker image — do NOT list it here
+# to avoid version conflicts with the image's bundled Airflow.
+
+# Database driver (psycopg 3 with pre-built binary)
+psycopg[binary]==3.3.4
+
+# HTTP client for Alpha Vantage API
+requests==2.34.2

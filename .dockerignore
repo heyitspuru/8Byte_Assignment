@@ -1,0 +1,45 @@
+# Version control
+.git/
+.gitignore
+
+# Environment / secrets
+.env
+.env.example
+
+# Tests (not needed in production image)
+tests/
+.pytest_cache/
+.coverage
+
+# Documentation
+README.md
+E2E_Implementation_Plan.md
+*.md
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+
+# Agent rules
+.agents/
+rules/
+
+# CI
+.github/
+
+# Docker
+docker-compose.yml
+docker-compose.override.yml
+Dockerfile
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ruff
+.ruff_cache/
+
+# Python cache
+__pycache__/
+*.py[cod]

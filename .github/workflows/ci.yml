@@ -1,0 +1,44 @@
+# CI workflow — runs lint + unit tests on every push/PR.
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest
+          pip install -r requirements.txt
+
+      - name: Lint with ruff
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Run unit tests
+        env:
+          ALPHA_VANTAGE_API_KEY: "ci_test_key"
+          STOCK_SYMBOLS: "AAPL"
+          POSTGRES_HOST: "localhost"
+          POSTGRES_PORT: "5432"
+          POSTGRES_DB: "stocks"
+          POSTGRES_USER: "stock_user"
+          POSTGRES_PASSWORD: "ci_test_password"
+        run: |
+          pytest -q -m "not integration"

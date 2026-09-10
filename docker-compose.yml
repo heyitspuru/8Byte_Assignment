@@ -1,0 +1,130 @@
+# docker-compose.yml
+# Stock Market Data Pipeline — full Airflow + PostgreSQL stack.
+# All services use pinned image versions. No 'latest' tags.
+# PostgreSQL is NOT exposed to the host — only the Airflow UI (port 8080).
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file:
+    - .env
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY:-}
+    AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: ${_AIRFLOW_WWW_USER_USERNAME:-admin}:admin
+    AIRFLOW__CORE__EXECUTION_API_SERVER_URL: http://airflow-api-server:8080/execution/
+    AIRFLOW__API__BASE_URL: http://airflow-api-server:8080
+    # Make src/ importable from DAGs
+    PYTHONPATH: /opt/airflow
+    # Pass through pipeline config
+    ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY}
+    STOCK_SYMBOLS: ${STOCK_SYMBOLS}
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: "5432"
+    POSTGRES_DB: ${POSTGRES_DB}
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./src:/opt/airflow/src
+    - ./sql:/opt/airflow/sql
+    - airflow-logs:/opt/airflow/logs
+  depends_on:
+    postgres:
+      condition: service_healthy
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — data store
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16.6-bookworm
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./sql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    # Port NOT exposed to host — only accessible within the Docker network.
+    # Uncomment the line below for local debugging only:
+    # ports:
+    #   - "5432:5432"
+
+  # ---------------------------------------------------------------------------
+  # Airflow init — one-shot service to initialize DB and create admin user
+  # ---------------------------------------------------------------------------
+  airflow-init:
+    <<: *airflow-common
+    command: db migrate
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Airflow API Server (Web UI) — the only host-exposed port
+  # ---------------------------------------------------------------------------
+  airflow-api-server:
+    <<: *airflow-common
+    command: api-server
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail http://localhost:8080/api/v2/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Airflow Scheduler
+  # ---------------------------------------------------------------------------
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname $(hostname) || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Airflow DAG Processor
+  # ---------------------------------------------------------------------------
+  airflow-dag-processor:
+    <<: *airflow-common
+    command: dag-processor
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Airflow Triggerer
+  # ---------------------------------------------------------------------------
+  airflow-triggerer:
+    <<: *airflow-common
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type TriggererJob --hostname $(hostname) || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  airflow-logs:
